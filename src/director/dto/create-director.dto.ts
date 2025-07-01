@@ -10,4 +10,7 @@ export class CreateDirectorDto {
 
   @IsNotEmpty()
   nationality: string;
+
+  @IsNotEmpty()
+  directorId: number;
 }
