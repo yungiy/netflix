@@ -17,7 +17,7 @@ export class MovieService {
     private readonly movieDetailRepository: Repository<MovieDetail>,
 
     @InjectRepository(Director)
-    private readonly directorRepository: Repository<Director>
+    private readonly directorRepository: Repository<Director>,
   ) {}
 
   async findAll(title?: string) {
@@ -51,13 +51,23 @@ export class MovieService {
   }
 
   async create(createMovieDto: CreateMovieDto) {
+    const director = await this.directorRepository.findOne({
+      where: {
+        id: createMovieDto.directorId,
+      },
+    });
+
+    if (!director) {
+      throw new NotFoundException('존재하지 않는 ID의 감독임!');
+    }
 
     const movie = await this.movieRepository.save({
       title: createMovieDto.title,
       genre: createMovieDto.genre,
       detail: {
         detail: createMovieDto.detail,
-      }
+      },
+      director,
     });
     return movie;
   }
@@ -72,7 +82,25 @@ export class MovieService {
       throw new NotFoundException('없는 영화 id 값임!');
     }
 
-    const { detail, ...movieRest } = updateMovieDto;
+    const { detail, directorId, ...movieRest } = updateMovieDto;
+
+    let newDirector;
+
+    if (directorId) {
+      const director = await this.directorRepository.findOne({
+        where: { id: directorId },
+      });
+      if (!director) {
+        throw new NotFoundException('존재하지 않는 ID의 감독임!');
+      }
+
+      newDirector = director;
+    }
+
+    const movieUpdateFields = {
+      ...movieRest,
+      ...(newDirector && { director: newDirector }),
+    };
 
     await this.movieRepository.update({ id }, movieRest);
 
@@ -94,14 +122,17 @@ export class MovieService {
   }
 
   async remove(id: number) {
-    const movie = await this.movieRepository.findOne({ where: { id }, relations: ['detail'] });
+    const movie = await this.movieRepository.findOne({
+      where: { id },
+      relations: ['detail'],
+    });
 
     if (!movie) {
       throw new NotFoundException('없는 영화 id 값임!');
     }
 
     await this.movieRepository.delete(id);
-    await this.movieDetailRepository.delete(movie.detail.id)
+    await this.movieDetailRepository.delete(movie.detail.id);
     return id;
   }
 }
